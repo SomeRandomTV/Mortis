@@ -1,19 +1,12 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.10)
 
-set(CMAKE_CXX_STANDARD 20)
+project(NetworkProject LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Project 
-project(m0rtis)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Library
-add_library(m0rtis src/m0rtis.cpp)
-
-target_include_directories(m0rtis PUBLIC include)
-
-# Tests
-enable_testing()
-
-add_executable(test_main tests/test_main.cpp)
-target_link_libraries(test_main PRIVATE m0rtis)
-add_test(NAME test_main COMMAND test_main)
+add_subdirectory(client)
+add_subdirectory(server)
