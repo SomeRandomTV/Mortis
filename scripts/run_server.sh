@@ -3,6 +3,6 @@
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER="$PROJECT_ROOT/build/server/server"
+MHUB="$PROJECT_ROOT/build/m0rtis_hub/m0rtis_hub"
 
-exec "$SERVER" "$@"
+exec "$MHUB" "$@"

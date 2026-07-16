@@ -3,6 +3,6 @@
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CLIENT="$PROJECT_ROOT/build/client/client"
+VNODE="$PROJECT_ROOT/build/m0rtis_node/m0rtis_node"
 
-exec "$CLIENT" "$@"
+exec "$VNODE" "$@"

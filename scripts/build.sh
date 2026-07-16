@@ -2,7 +2,7 @@
 
 set -e
 
-TARGET=${1:-server}
+TARGET=${1:-m_hub}
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="$PROJECT_ROOT/build"

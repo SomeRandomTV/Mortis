@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(NetworkProject LANGUAGES CXX)
+project(m0rtis-protocol LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(client)
-add_subdirectory(server)
+add_subdirectory(m0rtis_hub)
+add_subdirectory(m0rtis_node)
