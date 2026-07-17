@@ -28,8 +28,11 @@ int main(int argc, char **argv) {
     }
 
     MortisHub m_hub(host, port);
-    m_hub.connect_node();
-
+    if (m_hub.connect_node() != 0) {
+        std::cout << "Disconnecting Node ..." << std::endl;
+        return -10;
+    }
+    
     return 0;
 
 }

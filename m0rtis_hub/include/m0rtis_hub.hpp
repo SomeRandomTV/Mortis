@@ -15,7 +15,9 @@ namespace m0rtis {
             
             MortisHub(const char *HOST, unsigned PORT) : _HOST(HOST), _PORT(PORT) {}
 
-            void connect_node();
+            int connect_node();
+
+        
     
     };
 
