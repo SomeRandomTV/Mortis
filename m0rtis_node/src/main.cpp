@@ -28,7 +28,10 @@ int main(int argc, char **argv) {
     }
 
     MortisNode vnode(host, port);
-    vnode.connect_hub();
+    int connection = vnode.connect_hub();
+    if (connection != 0) {
+        return connection;
+    }
 
     return 0;
 
