@@ -101,6 +101,27 @@ I'm starting with a small set and expanding it as the CV pipeline needs new cate
 
 Empty by design. The envelope's `id` and `timestamp` already tell AXIOM the node is alive; I don't need anything in the body for Phase 0. If I later want to carry uptime or queue depth in a heartbeat, that's an additive change to an already-open `payload` object — not a breaking one.
 
+
+## Flow of Messages 
+
+### Node Side (emits)
+
+1) Node connects to hub 
+    a) send handshake message 
+2) In a loop - emit whatever Event Auralens captures 
+3) After most recent event set timer 
+    a) On timer timeout send `heartbeat` to node to check if alive 
+
+### Hub side (parses and dispatches)
+
+1) On accept, if message is not `handshake` reject 
+2) In a loop: receive a message, parse the envelope, and switch on type:
+    a) inference_event → hand off to whatever your AXIOM processing pipeline is
+    b) heartbeat → just update "last seen" timestamp for that node, no further action
+    c) handshake (after the first one) → protocol violation, probably close the connection
+    d) unrecognized type → per what we discussed earlier, this is a strict failure (not the lenient Unknown fallback we're using for event_type)
+
+
 ## Summary of decisions
 
 - **Envelope carries `version` on every message**, not just at handshake — supports diagnosing version drift from raw traffic.
