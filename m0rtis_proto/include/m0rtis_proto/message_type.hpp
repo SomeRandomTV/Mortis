@@ -33,7 +33,7 @@ inline std::string msg_to_string(MessageType t) {
 
 }
 
-inline MessageType string_to_msg(std::string &msg) {
+inline MessageType string_to_msg(const std::string &msg) {
     if (msg == "handshake") {
         return MessageType::Handshake;
     }
@@ -51,7 +51,7 @@ inline void to_json(nlohmann::json &j, const MessageType &t) {
     j = msg_to_string(t);
 }
 
-inline void from_json(nlohmann::json &j, const MessageType &t) {
+inline void from_json(const nlohmann::json &j, const MessageType &t) {
 
     j = string_to_msg(j.get<std::string>());
 }

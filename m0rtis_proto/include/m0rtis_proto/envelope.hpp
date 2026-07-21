@@ -11,12 +11,12 @@ namespace m0rtis {
 inline constexpr const char *PROTOCOL_VERSION = "0.0.0";
 
 struct Envelope {
-    std::string version(PROTOCOL_VERSION);      // ties to the protocol version 
-    MessageType type(MessageType::UNKNOWN);     // type of event emitted 
-    uint64_t node_id(0);            // node id 
-    int64_t timestamp(0);           // timestamp(ms) from unix epoch 
-    nlohman::json payload = nlohmann::json::object();
-}
+    std::string version{PROTOCOL_VERSION};      // ties to the protocol version 
+    MessageType type{MessageType::UNKNOWN};     // type of event emitted 
+    uint64_t node_id{0};            // node id 
+    int64_t timestamp{0};           // timestamp(ms) from unix epoch 
+    nlohmann::json payload = nlohmann::json::object();
+};
 
 
 inline void to_json(nlohmann::json &j, const Envelope &env) {

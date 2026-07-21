@@ -10,7 +10,10 @@ target_include_directories(m0rtis_node
     PRIVATE
         include
 )
-
+target_link_libraries(m0rtis_node 
+    PRIVATE 
+        m0rtis_proto
+)
 target_compile_options(m0rtis_node
     PRIVATE
         -Wall
