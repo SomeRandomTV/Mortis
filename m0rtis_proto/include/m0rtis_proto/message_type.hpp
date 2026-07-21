@@ -27,10 +27,10 @@ inline std::string msg_to_string(MessageType t) {
             return "heartbeat";
         case MessageType::InferenceEvent:
             return "inference_event";
+        case MessageType::UNKNOWN:
+        default:
+            throw std::runtime_error("ERROR: Unknown Message type. REJECTING .... ");
     }
-    
-    throw std::runtime_error("ERROR: Unknown MessageType");
-
 }
 
 inline MessageType string_to_msg(const std::string &msg) {
@@ -44,6 +44,7 @@ inline MessageType string_to_msg(const std::string &msg) {
         return MessageType::InferenceEvent;
     }
 
+    if (msg == "UNKNOWN")
     throw std::runtime_error("ERROR: Unknown messagee type " + msg);
 }
 
@@ -51,9 +52,9 @@ inline void to_json(nlohmann::json &j, const MessageType &t) {
     j = msg_to_string(t);
 }
 
-inline void from_json(const nlohmann::json &j, const MessageType &t) {
+inline void from_json(const nlohmann::json &j, MessageType &t) {
 
-    j = string_to_msg(j.get<std::string>());
+    t = string_to_msg(j.get<std::string>());
 }
 
 

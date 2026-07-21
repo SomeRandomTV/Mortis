@@ -1,5 +1,6 @@
 #pragma once 
 
+// TODO - Wire this into the payload of a message - im thinking at the frame level 
 namespace m0rtis {
 
 enum class EventType {
@@ -11,16 +12,17 @@ enum class EventType {
     ZoneEntered,
     ZoneExited
 
-}
+};
 
 NLOHMANN_JSON_SERIALIZE_ENUM(EventType, {
-    {EventType::Unknown,        "unknown"},
+    {EventType::UNKNOWN,        "UNKNOWN"},
     {EventType::PersonDetected, "person_detected"},
     {EventType::MotionDetected, "motion_detected"},
     {EventType::ObjectDetected, "object_detected"},
+    {EventType::HazardDetected, "hazard_detected"},
     {EventType::ZoneEntered,    "zone_entered"},
     {EventType::ZoneExited,     "zone_exited"},
-})
+});
  
 
 }   // namespace m0rtis 
