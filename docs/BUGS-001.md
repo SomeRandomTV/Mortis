@@ -47,9 +47,9 @@ Legend: 🔴 blocks compilation · 🟠 compiles but breaks protocol/logic · �
 
 ## m0rtis_node.cpp
 
-- [ ] 🔴 `inet_pton` error check only handles `_c < 0` (system error). `inet_pton` returns `0` for an invalid address string, which isn't caught — proceeds to `connect()` with an uninitialized address. Should be `if (_c < 1)` (matches what `m0rtis_hub.cpp` already does correctly)
+- [X] 🔴 `inet_pton` error check only handles `_c < 0` (system error). `inet_pton` returns `0` for an invalid address string, which isn't caught — proceeds to `connect()` with an uninitialized address. Should be `if (_c < 1)` (matches what `m0rtis_hub.cpp` already does correctly)
 - [ ] 🟠 No `bytes_recv == 0` (peer-closed) check in the read loop — only `bytes_sent == 0` is handled. If the hub disconnects, the node prints an empty echo and keeps looping instead of exiting
-- [ ] 🟡 `sockaddr_in node_addr;` isn't zero-initialized before setting fields — use `sockaddr_in node_addr{};`
+- [X] 🟡 `sockaddr_in node_addr;` isn't zero-initialized before setting fields — use `sockaddr_in node_addr{};`
 
 ---
 

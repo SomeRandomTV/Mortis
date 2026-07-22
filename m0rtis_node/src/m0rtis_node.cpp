@@ -7,6 +7,7 @@
 #include <string>
 
 #include "m0rtis_node.hpp"
+#include "m0rtis_proto/framing.hpp"
 
 using namespace m0rtis;
 
@@ -21,13 +22,13 @@ int MortisNode::connect_hub() {
         return -1;
     }
 
-    sockaddr_in node_addr;
+    sockaddr_in node_addr{};
     socklen_t node_len = sizeof(node_addr);
     node_addr.sin_family = AF_INET;
     node_addr.sin_port = htons(_PORT);
 
     int _c = inet_pton(AF_INET, _HOST, &node_addr.sin_addr);
-    if (_c < 0) {
+    if (_c < 1) {
         std::cerr << "ERROR: Failed to convert host IP from string to binary" << std::endl;
         close(sock);
         return -2;
