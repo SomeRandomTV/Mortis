@@ -1,4 +1,5 @@
-#pragma once 
+#pragma once
+#include <nlohmann/json.hpp>
 
 // TODO - Wire this into the payload of a message - im thinking at the frame level 
 namespace m0rtis {
