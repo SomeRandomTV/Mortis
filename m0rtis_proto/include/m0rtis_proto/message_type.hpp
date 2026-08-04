@@ -44,7 +44,6 @@ inline MessageType string_to_msg(const std::string &msg) {
         return MessageType::InferenceEvent;
     }
 
-    if (msg == "UNKNOWN")
     throw std::runtime_error("ERROR: Unknown messagee type " + msg);
 }
 

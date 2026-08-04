@@ -6,9 +6,9 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/ip.h>
-#include <chrono>
-#include <thread>
+
 #include "m0rtis_hub.hpp"
+#include "m0rtis_proto/framing.hpp"
 
 using namespace m0rtis;
 
@@ -50,7 +50,23 @@ int MortisHub::connect_node() {
         close(sock);
         return -4;
     }
+
+    /* TODO: This needs to be replaced by functions in the protocol library 
+     * Right now presently, there is a possible buffer overflow 
+     *      char buff[1024]              <- here 
+     *      buff[bytes_recv/sent] = '\0' <- here 
+     * The functions to replace this are 
+     *      for send -> inline int send_all 
+     *      for recv -> inline int recv_all 
+     */
     while (true) {
+
+        /* =====================
+         *    Connection Loop
+         * =====================
+         */
+
+        // ---- TODO: Multi-thread ----
         sockaddr_in n_addr;
         socklen_t n_addr_len = sizeof(n_addr);
         int _connection = accept(sock, reinterpret_cast<sockaddr *>(&n_addr), &n_addr_len);
@@ -62,35 +78,45 @@ int MortisHub::connect_node() {
         
         char ip_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &n_addr.sin_addr, ip_str, sizeof(ip_str));
-        std::cout << "Node connected from " << ip_str << ":" << ntohs(n_addr.sin_port) << std::endl;
+        std::cout << "Node connecting from " << ip_str << ":" << ntohs(n_addr.sin_port) << std::endl;
+        std::cout << "Waiting for handshake ...\n";
+        // -----------------------------
         
-        while (true) {
         
-            char buff[1024];
-            ssize_t bytes_recv = recv(_connection, buff, sizeof(buff), 0);
-            if (bytes_recv < 0) {
-                perror("recv");
-                close(_connection);
-                close(sock);
-                return -5;
-            }
+        /* Ok so once a node gets connect a handshake is expected 
+         * Hub needs to validate the node 
+         * 
+         */
 
-            if (bytes_recv == 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(5));
-                break;
-            }
 
-            buff[bytes_recv] = '\0';
-            std::cout << "Received: " << buff << std::endl;
-            
-            ssize_t bytes_sent = send(_connection, buff, bytes_recv, 0);
-            std::cout << "Bytes sent: " << bytes_sent << std::endl;
-
-        }
-        std::cout << "Node disconnected" << std::endl;
-        close(_connection);
-    }
-
+/*      while (true) {
+ *           
+ *           char buff[1024]; 
+ *           ssize_t bytes_recv = recv(_connection, buff, sizeof(buff), 0);
+ *           if (bytes_recv < 0) {
+ *               perror("recv");
+ *               close(_connection);
+ *               close(sock);
+ *               return -5;
+ *           }
+ *
+ *           if (bytes_recv == 0) {
+ *               std::this_thread::sleep_for(std::chrono::milliseconds(5));
+ *               break;
+ *           }
+ *           
+ *           // buffer overflow here
+ *           buff[bytes_recv] = '\0';
+ *           std::cout << "Received: " << buff << std::endl;
+ *           
+ *           ssize_t bytes_sent = send(_connection, buff, bytes_recv, 0);
+ *           std::cout << "Bytes sent: " << bytes_sent << std::endl;
+ *
+ *       }
+ *       std::cout << "Node disconnected" << std::endl;
+ *       close(_connection);
+ *  }
+ */
     close(sock);
 
     std::cout << "Connection Closed ... " << std::endl;
