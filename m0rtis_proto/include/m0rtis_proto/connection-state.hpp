@@ -22,11 +22,6 @@
  * 
  *  This is a shared library between V-Node and Hub so in the main namespace (connection_state here) will be the shared items 
  *
- *  namespace m0rtis::connection_state::vnode_state
- *      Contains all functions and shapes n shit for the V-Node state 
- *
- *  namespace m0rtis::connection_state::hub_state
- *      Same shit but for the hub state 
  */
 namepsace m0rtis::connection_state {
     
@@ -91,23 +86,6 @@ namepsace m0rtis::connection_state {
         // TODO: GET NODE STATE DOWN 
 
     };
-
-    namespace vnode_state {
-        // node connection state will go here  
-        inline constexpr int connect_to_hub(connection_state::Transistion &t) {
-            std::cout << "Connecting to hub ... \n";
-            return 0;
-        } 
-    }
-
-    namespace hub_state {
-        // hub connection state will go here 
-        inline constexpr int accept_vnode(connection_state::Transition &t) {
-            std::cout << "Accepting V-Node ... \n";
-            return 0;
-
-        }
-    }
 
 
 
