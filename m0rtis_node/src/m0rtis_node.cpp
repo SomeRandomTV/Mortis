@@ -8,8 +8,16 @@
 #include <ctime>
 
 #include "m0rtis_node.hpp"
+#include "m0rtis_proto/envelope.hpp"
 #include "m0rtis_proto/framing.hpp"
+#include "m0rtis_proto/event_type.hpp"
+#include "m0rtis_proto/message_type.hpp"
+
 using namespace m0rtis;
+
+
+/* =========== Private Methods =========== */
+/* ========== Public API Methods ==========*/
 
 int MortisNode::connect_hub() {
     
@@ -65,3 +73,49 @@ int MortisNode::connect_hub() {
 
        
 }
+
+void MortisNode::event_loop() {
+    
+    Envelope inf = next_fixture_inference_event();
+
+    std::cout << "Got Something from the I.R.I.S. ->: \n";
+    std::cout << "Type: " << msg_to_string(inf.type) << "\n";
+    std::cout << "Time: " << inf.timestamp_ms << "\n";
+    std::cout << "From ID: " << inf.version << "\n";
+    std::cout << " ======= Payload ======= \n";
+    std::cout << inf.payload.dump(2);
+
+    int err = emit_event(sock, inf);
+
+    if (err != 0) {
+        std::cout << "Could not send data: " << err << "\n";
+        close(sock);
+        return;
+    }
+    
+    std::cout << "Envelope sent ... ";
+
+    time_t right_now;
+
+    Envelope heartbeat {
+        "0.0.0",
+        MessageType::Heartbeat,
+        VNODE_ID,
+        time(&right_now),
+        nlohmann::json::object()
+
+        
+
+    };
+
+    err = emit_event(sock, heartbeat);
+
+    if (err != 0) {
+        std::cerr << "Could not send heartbeat ... error: " << err << "\n";
+        close(sock);
+        return;
+    }
+}
+
+
+

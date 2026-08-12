@@ -10,12 +10,10 @@
 #include <iostream>
 #include <chrono>
 #include <sys/socket.h>
-#include <thread>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 #include <sys/types.h>
-#include "message_type.hpp"
 #include "envelope.hpp"
 
 namespace m0rtis {
@@ -103,7 +101,7 @@ namespace m0rtis {
         int err = frame_utils::recv_all(sock, reinterpret_cast<char *>(&len_net), sizeof(len_net));     // receive length prefix first
 
         if (err != 0) {
-            std::cout << "Receiving length prefix fucking failed ..." << std::endl;
+            std::cout << "Receiving length prefix fucking failed ... error: " << err  << std::endl;
             return std::nullopt;
         }
 
@@ -126,13 +124,6 @@ namespace m0rtis {
         return std::nullopt;
 
     }
-
-
-        
-
-
-
-
 
 
     }

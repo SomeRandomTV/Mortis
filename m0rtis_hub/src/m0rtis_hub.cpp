@@ -1,4 +1,3 @@
-#include <atomic>
 #include <iostream>
 #include <string_view>
 #include <sys/socket.h>
@@ -15,6 +14,16 @@
 
 using namespace m0rtis;
 
+void MortisHub::kill_node_connection(uint8_t _id) {
+    
+    if (connected_nodes.find(_id) == connected_nodes.end()) {
+        std::cerr << "ERROR: V-Node does not exist in connected_nodes\n";
+    } else {
+        std::cout << "Killing connection to node: " << _id;
+        close(connected_nodes[_id].node_sock);
+    }
+
+}
 
 int MortisHub::accept_connection() {
     
@@ -64,6 +73,7 @@ int MortisHub::accept_connection() {
         perror("accept");
         return -5;
     };
+
     
     char ip_str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &n_addr.sin_addr, ip_str, sizeof(ip_str));
@@ -99,12 +109,13 @@ int MortisHub::accept_connection() {
             return -7;
         }
 
-        std::cout << "Connection to " << _vnode_id << " accepted\n";
+        std::cout << "Connection to V-Node " << std::format("{}", _vnode_id) << " @ " << ip_str << " accepted\n";
         ConnectedNode valid_node {
             ip_str,                          // node_addr
             true,                            // is_connected
             15,                              // heartbeat timer
             connection_state::CONNECTION_STATES::ACTIVE,       // node_state: AWAITING_HANDSHAKE -> ACTIVE
+            _connection     // node socket
         };
 
         connected_nodes[_vnode_id] = valid_node;
@@ -115,4 +126,44 @@ int MortisHub::accept_connection() {
     return 0;    
 
     
+}
+
+void MortisHub::recv_loop() {
+    
+    int counter{0};
+    while (counter++ < 5) {
+        
+        std::optional<Envelope> env = recv_event(connected_nodes[1].node_sock);
+
+        if (env == std::nullopt) {
+            break;
+        }
+
+        switch (env->type) {
+            case MessageType::Heartbeat:
+                std::cout << "Got heartbeat\n";
+                // reset timer 
+                break;
+            case MessageType::InferenceEvent:
+                std::cout << "Got Inference Event\n";
+
+                std::cout << "Time: " << env->timestamp_ms << "\n";
+                std::cout << "From ID: " << env->vnode_id << "\n";
+                std::cout << "========== Payload ==========\n";
+                std::cout << env->payload.dump(2);
+                std::cout << "=============================\n";
+                break;
+            default:
+
+                std::cerr << "ERROR: Invalid Envelope ... DISCONNECTING \n";
+                std::cerr << "Got type: " << msg_to_string(env->type) << "\n";
+                kill_node_connection(env->vnode_id); 
+                break;
+
+        }
+        
+    }
+
+    std::cout << "it is done ... ";
+
 }

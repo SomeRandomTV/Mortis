@@ -10,9 +10,13 @@ target_include_directories(m0rtis_node
     PRIVATE
         include
 )
-target_link_libraries(m0rtis_node 
-    PRIVATE 
+target_link_libraries(m0rtis_node
+    PRIVATE
         m0rtis_proto
+)
+target_compile_definitions(m0rtis_node
+    PRIVATE
+        FIXTURE_INFERENCE_EVENTS_PATH="${CMAKE_SOURCE_DIR}/test_files/inference_events.json"
 )
 target_compile_options(m0rtis_node
     PRIVATE

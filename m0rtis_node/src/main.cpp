@@ -33,6 +33,8 @@ int main(int argc, char **argv) {
         return connection;
     }
 
+    vnode.event_loop();
+
     return 0;
 
 }

@@ -15,3 +15,6 @@ target_include_directories(m0rtis_proto INTERFACE
 )
 add_subdirectory(m0rtis_hub)
 add_subdirectory(m0rtis_node)
+
+enable_testing()
+add_subdirectory(tests)

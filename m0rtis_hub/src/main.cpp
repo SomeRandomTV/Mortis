@@ -32,6 +32,9 @@ int main(int argc, char **argv) {
         std::cout << "Disconnecting Node ..." << std::endl;
         return -10;
     }
+
+    m_hub.recv_loop();
+
     
     return 0;
 

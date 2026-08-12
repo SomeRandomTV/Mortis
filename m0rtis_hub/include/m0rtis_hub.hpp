@@ -14,6 +14,7 @@ namespace m0rtis {
         // heartbeat time out? decremented timer? reset after inf event | heartbeat? 
         unsigned heartbeat_t;     // set to 15 seconds
         connection_state::CONNECTION_STATES node_state;       // hub side view of the node DISCONNECTED | ACTIVE
+        int node_sock;
     };
 
     //  Protocol Version
@@ -28,10 +29,13 @@ namespace m0rtis {
             unsigned _PORT;
             MortisHub(const char *HOST, unsigned PORT) : _HOST(HOST), _PORT(PORT) {}
             int accept_connection();        // waits to get the handshake
+            void recv_loop();
 
         private:
             std::map<uint64_t, ConnectedNode> connected_nodes;
             int sock;
+
+            void kill_node_connection(uint8_t _id);
 
 
             

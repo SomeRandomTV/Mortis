@@ -24,6 +24,19 @@ NLOHMANN_JSON_SERIALIZE_ENUM(EventType, {
     {EventType::ZoneEntered,    "zone_entered"},
     {EventType::ZoneExited,     "zone_exited"},
 });
+
+
+struct BoundingBox {
+    int x, y, w, h;
+};
+
+struct InferenceEvent {
+    EventType type;
+    double confidence;
+    BoundingBox bbox;
+    nlohmann::json metadata;
+
+};
  
 
 }   // namespace m0rtis 
