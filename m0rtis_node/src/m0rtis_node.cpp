@@ -5,17 +5,17 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <string>
+#include <ctime>
 
 #include "m0rtis_node.hpp"
 #include "m0rtis_proto/framing.hpp"
-
 using namespace m0rtis;
 
 int MortisNode::connect_hub() {
     
     std::cout << "Node connecting to Hub at " << _HOST << ":" << _PORT << std::endl;
 
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
         std::cerr << "ERROR: Failed to create socked" << std::endl;
         close(sock);
@@ -24,7 +24,7 @@ int MortisNode::connect_hub() {
 
     sockaddr_in node_addr{};
     socklen_t node_len = sizeof(node_addr);
-    node_addr.sin_family = AF_INET;
+    node_addr.sin_family = AF_INET;     // IPv4 192.126.12.123
     node_addr.sin_port = htons(_PORT);
 
     int _c = inet_pton(AF_INET, _HOST, &node_addr.sin_addr);
@@ -40,48 +40,28 @@ int MortisNode::connect_hub() {
         close(sock);
         return -3;
     }
-
-    std::string msg;
-
-    while(true) {
-        std::cout << "m0rtis_node$ ";
-        std::getline(std::cin, msg);
-
-        if (msg == "q" || msg == "quit" || msg == "exit") {
-            std::cout << "exiting ... ";
-            break;
-        }
-
-
-        std::cout << "Sending data ..." << std::endl;
+    time_t right_now;
+    Envelope env {
+       "0.0.0",     // protocol version         
+        MessageType::Handshake,
+        VNODE_ID,   // vision node id 
+        time(&right_now),   // right fucking now 
+        nlohmann::json::object()    // empty payload 
         
-        ssize_t bytes_sent = send(sock, msg.c_str(), msg.size(), 0);
-        if (bytes_sent < 0) {
-            perror("send");
-            close(sock);
-            return -4;
-        } else if (bytes_sent == 0) {
-            std::cout << "Done ..." << std:: endl;
-            break;
-        }
-        std::cout << "sdfg" << std::endl;
-        
-        char buff[1024];
-        ssize_t bytes_recv = recv(sock, buff, sizeof(buff) - 1, 0);
-        if (bytes_recv < 0) {
-            perror("recv");
-            close(sock);
-            return -5;
-        }
-        
-        buff[bytes_recv] = '\0';
-        std::cout << "ECHO => " << buff << std::endl;
-    
+    };
+
+    int err = emit_event(sock, env);
+
+    if (err != 0) {
+        close(sock);
+        close(_connection);
+        std::cerr << "ERROR: Hub rejected the handshake ... returned " << err << "\n";
+        return err;
 
     }
-
-    close(sock);
-    std::cout << "Disconnection from Hub ... " << std::endl;
+        
+    std::cout << "Hub accepted connection\n";
     return 0;
-    
+
+       
 }

@@ -77,7 +77,7 @@ namespace m0rtis {
         }
 
         const uint32_t len_net = htonl(static_cast<uint32_t>(msg_body.size()));   
-        int err = frame_utils::send_all(sock, reinterpret_cast<char *>(&len_net), sizeof(len_net));      // send length prefix first 
+        int err = frame_utils::send_all(sock, reinterpret_cast<const char *>(&len_net), sizeof(len_net));      // send length prefix first 
 
         if (err != 0) {
             std::cout << "Shiiiii failed to send length prefix ..." << std::endl;

@@ -1,21 +1,25 @@
 #include <atomic>
 #include <iostream>
+#include <string_view>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <thread>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/ip.h>
+#include <optional>
 
 #include "m0rtis_hub.hpp"
+#include "m0rtis_proto/envelope.hpp"
 #include "m0rtis_proto/framing.hpp"
+#include "m0rtis_proto/message_type.hpp"
 
 using namespace m0rtis;
 
-int MortisHub::connect_node() {
+
+int MortisHub::accept_connection() {
     
     std::cout << "HUB serving at " << _HOST << ":" << _PORT << std::endl;
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    sock = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sock == -1) {
         perror("Socket creation failed");
@@ -51,80 +55,64 @@ int MortisHub::connect_node() {
         return -4;
     }
 
-    /* TODO: This needs to be replaced by functions in the protocol library 
-     * Right now presently, there is a possible buffer overflow 
-     *      char buff[1024]              <- here 
-     *      buff[bytes_recv/sent] = '\0' <- here 
-     * The functions to replace this are 
-     *      for send -> inline int send_all 
-     *      for recv -> inline int recv_all 
-     */
-    while (true) {
+    // ---- TODO: Multi-thread ----
+    sockaddr_in n_addr;
+    socklen_t n_addr_len = sizeof(n_addr);
+    int _connection = accept(sock, reinterpret_cast<sockaddr *>(&n_addr), &n_addr_len);
 
-        /* =====================
-         *    Connection Loop
-         * =====================
-         */
-
-        // ---- TODO: Multi-thread ----
-        sockaddr_in n_addr;
-        socklen_t n_addr_len = sizeof(n_addr);
-        int _connection = accept(sock, reinterpret_cast<sockaddr *>(&n_addr), &n_addr_len);
-
-        if (_connection == -1) {
-            perror("accept");
-            continue;
-        }
-        
-        char ip_str[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &n_addr.sin_addr, ip_str, sizeof(ip_str));
-        std::cout << "Node connecting from " << ip_str << ":" << ntohs(n_addr.sin_port) << std::endl;
-        std::cout << "Waiting for handshake ...\n";
-        // -----------------------------
-        
-        
-        /* Ok so once a node gets connect a handshake is expected 
-         * Hub needs to validate the node 
-         * 
-         */
-
-
-/*      while (true) {
- *           
- *           char buff[1024]; 
- *           ssize_t bytes_recv = recv(_connection, buff, sizeof(buff), 0);
- *           if (bytes_recv < 0) {
- *               perror("recv");
- *               close(_connection);
- *               close(sock);
- *               return -5;
- *           }
- *
- *           if (bytes_recv == 0) {
- *               std::this_thread::sleep_for(std::chrono::milliseconds(5));
- *               break;
- *           }
- *           
- *           // buffer overflow here
- *           buff[bytes_recv] = '\0';
- *           std::cout << "Received: " << buff << std::endl;
- *           
- *           ssize_t bytes_sent = send(_connection, buff, bytes_recv, 0);
- *           std::cout << "Bytes sent: " << bytes_sent << std::endl;
- *
- *       }
- *       std::cout << "Node disconnected" << std::endl;
- *       close(_connection);
- *  }
- */
-    close(sock);
-
-    std::cout << "Connection Closed ... " << std::endl;
-    return 0;
-
-
-
+    if (_connection == -1) {
+        perror("accept");
+        return -5;
+    };
     
+    char ip_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &n_addr.sin_addr, ip_str, sizeof(ip_str));
+    std::cout << "Node connecting from " << ip_str << ":" << ntohs(n_addr.sin_port) << std::endl;
+    std::cout << "Waiting for handshake ...\n";
+    // -----------------------------
+    
+    // start timer for handshake 
+    while (true) {
+        std::optional<Envelope> handshake {recv_event(_connection)};
+        
+        if (handshake == std::nullopt) {
+            continue;        
+        }
+
+        if (handshake->type != MessageType::Handshake) {
+            std::cerr << "ERROR: Expected handshake but got " << msg_to_string(handshake->type) << " ... DISCONNECTING \n";
+            close(_connection);
+            return -6;
+        }
+        // stop timer 
+        std::cout << "Received Handshake ... parsing \n";
+
+        uint8_t _vnode_id = handshake->vnode_id;
+        std::string_view proto_v = handshake->version;
+
+        // pretty sure there is a better way of doing this 
+        // i need to find a minium version required LATER 
+        // right now anything other than v0.0.0 is wrong 
+        if (proto_v != "0.0.0") {
+            std::cerr << "ERROR: Protocol Version not supported ... DISCONNECTING \n";
+            close(_connection);
+            return -7;
+        }
+
+        std::cout << "Connection to " << _vnode_id << " accepted\n";
+        ConnectedNode valid_node {
+            ip_str,                          // node_addr
+            true,                            // is_connected
+            15,                              // heartbeat timer
+            connection_state::CONNECTION_STATES::ACTIVE,       // node_state: AWAITING_HANDSHAKE -> ACTIVE
+        };
+
+        connected_nodes[_vnode_id] = valid_node;
+        break;
+    }
+
+    std::cout << "Connected ... " << std::endl;
+    return 0;    
 
     
 }

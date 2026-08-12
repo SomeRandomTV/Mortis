@@ -1,8 +1,48 @@
-#pragma once 
-
-#include "m0rtis_proto/connection-state.hpp"
-
-namespace m0rtis::hub_state {
-    int recv_handchake();
-
-}       // namespace m0rtis
+// not used fuck you
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+// in the darkness only ambition will guide you 
+// the future is not a river to carry us, it is the ocean in which we drown if we are not prepared

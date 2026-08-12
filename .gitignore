@@ -71,3 +71,7 @@ Testing/
 # Claude shit 
 CLAUDE.md 
 obsidian/
+
+# testing shits 
+tests/
+test_files/

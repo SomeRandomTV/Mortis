@@ -23,11 +23,11 @@
  *  This is a shared library between V-Node and Hub so in the main namespace (connection_state here) will be the shared items 
  *
  */
-namepsace m0rtis::connection_state {
+namespace m0rtis::connection_state {
     
 
-    consteval const int HUB_TIMEOUT = 30;    // expect heartbeat from node, reset after receiving data from node 
-    consteval const int NODE_HEARTBEAT = 5;  // send heart beat every 5 seconds after inference  
+    constexpr const int HUB_TIMEOUT = 30;    // expect heartbeat from node, reset after receiving data from node
+    constexpr const int NODE_HEARTBEAT = 5;  // send heart beat every 5 seconds after inference
 
     enum class TRIGGERS {
         // ========== TO DISCONNECTED STATE ========== 
@@ -83,10 +83,22 @@ namepsace m0rtis::connection_state {
     };
 
     static constexpr Transition vnode_t_table[] = {
-        // TODO: GET NODE STATE DOWN 
-
+        // Partial port of docs/CONNECTION-STATE.md's node table, using only
+        // TRIGGERS values that already exist. Two rows from the doc have no
+        // corresponding trigger yet and are intentionally omitted (tracked
+        // under SCRUM-13, not added here to avoid growing the enum out of
+        // scope of this fix):
+        //   Disconnected -> Connecting   (trigger: "connect initiated")
+        //   Connecting   -> HandshakeSent (trigger: "TCP connect succeeds")
+        { CONNECTION_STATES::CONNECTING, TRIGGERS::TCP_FAILURE, CONNECTION_STATES::DISCONNECTED },
+        { CONNECTION_STATES::HANDSHAKE_SENT, TRIGGERS::HANDSHAKE_VALID, CONNECTION_STATES::ACTIVE },
+        { CONNECTION_STATES::HANDSHAKE_SENT, TRIGGERS::IO_ERROR, CONNECTION_STATES::DISCONNECTED },
+        { CONNECTION_STATES::ACTIVE, TRIGGERS::INFERENCE_EVENT, CONNECTION_STATES::ACTIVE },
+        { CONNECTION_STATES::ACTIVE, TRIGGERS::HEARTBEAT, CONNECTION_STATES::ACTIVE },
+        { CONNECTION_STATES::ACTIVE, TRIGGERS::IO_ERROR, CONNECTION_STATES::DISCONNECTED },
+        { CONNECTION_STATES::ACTIVE, TRIGGERS::NODE_SHUTDOWN, CONNECTION_STATES::DISCONNECTED },
     };
 
 
 
-}   // namepsace m0rtis::connection_state
+}   // namespace m0rtis::connection_state

@@ -1,18 +1,23 @@
 #pragma once
+
+#include <cstdint>
 #include <map>
 
+#include "m0rtis_proto/connection-state.hpp"
 
 namespace m0rtis {
 
 
     struct ConnectedNode {
+        std::string node_addr;
         bool is_connected;
         // heartbeat time out? decremented timer? reset after inf event | heartbeat? 
-        unsigned heartbeat_t;
+        unsigned heartbeat_t;     // set to 15 seconds
+        connection_state::CONNECTION_STATES node_state;       // hub side view of the node DISCONNECTED | ACTIVE
     };
 
     //  Protocol Version
-    inline constexpr const char* VERSION = "0.0.0";
+    inline constexpr const char* HUB_VERSION = "0.0.0";
 
 
     class MortisHub {
@@ -21,13 +26,12 @@ namespace m0rtis {
 
             const char *_HOST;
             unsigned _PORT;
-            
             MortisHub(const char *HOST, unsigned PORT) : _HOST(HOST), _PORT(PORT) {}
+            int accept_connection();        // waits to get the handshake
 
-            int connect_node();     // opens the socket and will wait for handshake       
-        
         private:
-            std::map<int, ConnectedNode> connected_nodes;
+            std::map<uint64_t, ConnectedNode> connected_nodes;
+            int sock;
 
 
             

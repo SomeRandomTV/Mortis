@@ -15,7 +15,7 @@ inline constexpr const char *PROTOCOL_VERSION = "0.0.0";
 struct Envelope {
     std::string version{ PROTOCOL_VERSION };      // ties to the protocol version 
     MessageType type{ MessageType::UNKNOWN };     // type of event emitted 
-    uint64_t vnode_id{ 0 };            // node id 
+    uint8_t vnode_id{ 0 };            // node id 
     int64_t timestamp_ms{ 0 };           // timestamp(ms) from unix epoch 
     nlohmann::json payload{ nlohmann::json::object() };
 };
@@ -25,7 +25,7 @@ inline void to_json(nlohmann::json &j, const Envelope &env) {
     j = nlohmann::json{
         {"version",   env.version},
         {"type",      env.type},
-        {"vnode_id",        env.vnode_id},
+        {"vnode_id",  env.vnode_id},
         {"timestamp", env.timestamp_ms},
         {"payload",   env.payload},
     };
