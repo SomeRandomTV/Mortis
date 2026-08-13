@@ -4,8 +4,11 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <string>
+#include <stdio.h>
+#include <stdlib.h>
 #include <ctime>
+#include <thread>
+#include <chrono>
 
 #include "m0rtis_node.hpp"
 #include "m0rtis_proto/envelope.hpp"
@@ -17,10 +20,44 @@ using namespace m0rtis;
 
 
 /* =========== Private Methods =========== */
+
+void MortisNode::heartbeat_daemon() {
+    /* Runs a timer in the background
+     * After timer reaches 0 
+     * Emit heartbeat
+     * Reset Timer 
+     */
+
+    pid_t hd_pid = fork();  // heartbeat_daemon PID 
+    
+    if (hd_pid < 0) {
+        perror("fork");
+        exit(-1);
+    }
+
+    if (hd_pid > 0) {
+       exit(0); 
+    } 
+
+}
 /* ========== Public API Methods ==========*/
 
+/**
+ * opens the TCP socket, connects to the hub at _HOST:_PORT, and sends
+ * the one-and-only handshake envelope every connection has to start
+ * with. bails out (closing whatever's open so far) the moment any step
+ * fails - socket creation, address conversion, connect(), or the hub
+ * flat-out rejecting the handshake.
+ *
+ * doesn't touch event_loop() or anything past the handshake - this is
+ * just "get connected and say hello," nothing else
+ *
+ * @return 0 if the hub accepted the handshake, otherwise a negative
+ *         error code (-1 socket, -2 inet_pton, -3 connect, or
+ *         whatever emit_event returned if the handshake send itself failed)
+ */
 int MortisNode::connect_hub() {
-    
+
     std::cout << "Node connecting to Hub at " << _HOST << ":" << _PORT << std::endl;
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -50,13 +87,15 @@ int MortisNode::connect_hub() {
     }
     time_t right_now;
     Envelope env {
-       "0.0.0",     // protocol version         
+       "0.0.0",     // protocol version
         MessageType::Handshake,
-        VNODE_ID,   // vision node id 
-        time(&right_now),   // right fucking now 
-        nlohmann::json::object()    // empty payload 
-        
+        VNODE_ID,   // vision node id
+        time(&right_now),   // right fucking now
+        nlohmann::json::object()    // empty payload
+
     };
+
+    std::cout << "Sending Handshake ... \n";
 
     int err = emit_event(sock, env);
 
@@ -67,55 +106,124 @@ int MortisNode::connect_hub() {
         return err;
 
     }
-        
+
     std::cout << "Hub accepted connection\n";
     return 0;
 
-       
+
 }
 
+/**
+ * the node's main loop, post-handshake - runs a fixed 10 ticks (not
+ * actually indefinite despite the header comment, that's still TODO),
+ * alternating between pulling a fake inference event off
+ * next_fixture_inference_event() on even ticks and sending a heartbeat
+ * on odd ticks, sleeping 900ms between each. calls node_shutdown() once
+ * the loop's done so the hub gets a clean SHUTDOWN instead of just
+ * seeing the socket vanish.
+ *
+ * bails early (closing the socket, no shutdown envelope) if any
+ * emit_event call fails partway through - no retry, no partial-cleanup
+ * dance, just stop.
+ *
+ * heartbeat is still sent inline on the same thread/tick as everything
+ * else - the "needs to be a background process" comment below is
+ * flagging that this isn't really independent of event traffic yet, a
+ * slow/blocked event send currently delays the next heartbeat too
+ */
 void MortisNode::event_loop() {
-    
-    Envelope inf = next_fixture_inference_event();
 
-    std::cout << "Got Something from the I.R.I.S. ->: \n";
-    std::cout << "Type: " << msg_to_string(inf.type) << "\n";
-    std::cout << "Time: " << inf.timestamp_ms << "\n";
-    std::cout << "From ID: " << inf.version << "\n";
-    std::cout << " ======= Payload ======= \n";
-    std::cout << inf.payload.dump(2);
+    int counter { 0 };
+    int err { 0 };
+    while (counter < 10) {
 
-    int err = emit_event(sock, inf);
+        if (counter % 2 == 0) {
+            Envelope inf = next_fixture_inference_event();
 
-    if (err != 0) {
-        std::cout << "Could not send data: " << err << "\n";
-        close(sock);
-        return;
+            std::cout << "Got Inference Event from the I.R.I.S. ->: \n";
+            std::cout << "Time: " << inf.timestamp_ms << "\n";
+            std::cout << "From ID: " << inf.version << "\n\n";
+
+
+
+            err = emit_event(sock, inf);
+
+            if (err != 0) {
+                std::cout << "Could not send data: " << err << "\n";
+                close(sock);
+                return;
+            }
+
+            std::cout << "Envelope sent ... \n";
+
+        }
+
+
+        /* ========== This needs to be a background process ========== */
+        if (counter % 2 == 1) {
+            time_t right_now;
+
+            Envelope heartbeat {
+                "0.0.0",
+                MessageType::Heartbeat,
+                VNODE_ID,
+                time(&right_now),
+                nlohmann::json::object()
+
+            };
+            err = emit_event(sock, heartbeat);
+
+            if (err != 0) {
+                std::cerr << "Could not send heartbeat ... error: " << err << "\n";
+                close(sock);
+                return;
+            }
+        }
+        counter++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(900));
     }
-    
-    std::cout << "Envelope sent ... ";
+    node_shutdown();
+}
 
-    time_t right_now;
 
-    Envelope heartbeat {
-        "0.0.0",
-        MessageType::Heartbeat,
+/**
+ * tells the hub this node is disconnecting on purpose - sends one
+ * SHUTDOWN envelope, then closes the socket either way (whether the send
+ * worked or not, there's no point holding the socket open after this).
+ * this is what lets recv_loop() on the hub side tell "node said goodbye"
+ * apart from "node just vanished."
+ *
+ * @return 0 if the shutdown envelope actually made it out, otherwise
+ *         whatever negative error code emit_event returned - either way
+ *         the socket's closed by the time this returns
+ */
+int MortisNode::node_shutdown() {
+    // this function is to notify the hub that it is shutting down
+
+    time_t right_fucking_now;
+    Envelope shutdown {
+        PROTOCOL_VERSION,
+        MessageType::SHUTDOWN,
         VNODE_ID,
-        time(&right_now),
+        time(&right_fucking_now),
         nlohmann::json::object()
-
-        
-
     };
 
-    err = emit_event(sock, heartbeat);
+    int err = emit_event(sock, shutdown);
 
     if (err != 0) {
-        std::cerr << "Could not send heartbeat ... error: " << err << "\n";
+        std::cerr << "Failed to send shutdown signal - still shuting down VNODE\n";
         close(sock);
-        return;
+        return err;
     }
-}
 
+    std::cout << "Node shutdown sent ... shutting down now \n";
+    close(sock);
+    return 0;
+
+
+
+
+}
 
 

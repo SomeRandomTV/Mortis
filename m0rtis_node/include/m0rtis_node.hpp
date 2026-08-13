@@ -13,6 +13,12 @@
 #error "FIXTURE_INFERENCE_EVENTS_PATH must be defined by the build (see m0rtis_node/CMakeLists.txt)"
 #endif
 
+// A V-Node's side of the wire - MortisNode connects out to one hub,
+// sends exactly one handshake, then loops sending inference events and
+// heartbeats until it shuts itself down. next_fixture_inference_event()
+// below stands in for the real I.R.I.S. pipeline until that's wired up -
+// it's what event_loop() (m0rtis_node.cpp) actually pulls events from
+// today.
 namespace m0rtis {
 
     //  Protocol Version
@@ -59,8 +65,14 @@ namespace m0rtis {
 
     /* ========== END-OF-DO-NOT-TOUCH ==========*/
 
+    // One MortisNode == one V-Node talking to one hub over one socket
+    // (`sock`, private - nothing outside connect_hub/event_loop/
+    // node_shutdown ever touches the fd directly). VNODE_ID is whatever
+    // this node identifies itself as in its handshake and every
+    // subsequent envelope - it's what the hub keys connected_nodes by on
+    // its side.
     class MortisNode {
-        
+
         public:
 
             const char *_HOST;
@@ -75,6 +87,7 @@ namespace m0rtis {
 
         private:
             int sock;
+            void heartbeat_daemon();    // runs heartbeat send timer
 
     };
 
