@@ -54,6 +54,7 @@ namespace m0rtis {
             uint8_t _active_vnode_id{ 0 };   // vnode_id of the connection accept_connection() most recently registered
 
             void kill_node_connection(uint8_t _id);
+            void heartbeat_daemon();        // waits for heartbeat 
 
 
 

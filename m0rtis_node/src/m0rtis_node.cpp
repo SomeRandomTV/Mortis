@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <iostream>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -32,11 +33,11 @@ void MortisNode::heartbeat_daemon() {
     
     if (hd_pid < 0) {
         perror("fork");
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
 
     if (hd_pid > 0) {
-       exit(0); 
+       exit(EXIT_SUCCESS); 
     } 
 
 }
@@ -225,5 +226,6 @@ int MortisNode::node_shutdown() {
 
 
 }
+
 
 
