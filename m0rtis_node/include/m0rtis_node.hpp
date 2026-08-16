@@ -22,7 +22,7 @@
 namespace m0rtis {
 
     //  Protocol Version
-    inline constexpr const char* NODE_VERSION = "0.0.0";
+    inline constexpr const char* NODE_VERSION = "0.0.0"; 
 
 
     /* ========== DO NOT TOUCH UNTIL I.R.I.S. integration ========== */
@@ -88,6 +88,7 @@ namespace m0rtis {
         private:
             int sock;
             void heartbeat_daemon();    // runs heartbeat send timer
+            int _heartbeat_sock;
 
     };
 

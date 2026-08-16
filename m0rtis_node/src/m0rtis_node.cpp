@@ -35,11 +35,31 @@ void MortisNode::heartbeat_daemon() {
         perror("fork");
         exit(EXIT_FAILURE);
     }
-
+    // detaches 
     if (hd_pid > 0) {
        exit(EXIT_SUCCESS); 
-    } 
+    }
+    // creates separate session 
+    if (setsid() < 0) {
+        perror("setsid");
+        exit(EXIT_FAILURE);
+    }
 
+    // ok so on a timer - send a heartbeat to the server, now 
+    // a separate socket sounds like a good descision
+    _heartbeat_sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (_heartbeat_sock < 0) {
+        std::cerr << "ERROR: Failed to create heartbeat socket \n";
+        exit(EXIT_FAILURE);
+    }
+
+
+
+
+
+
+
+    
 }
 /* ========== Public API Methods ==========*/
 

@@ -51,6 +51,7 @@ namespace m0rtis {
         private:
             std::map<uint64_t, ConnectedNode> connected_nodes;
             int sock;
+            int _heartbeat_sock;
             uint8_t _active_vnode_id{ 0 };   // vnode_id of the connection accept_connection() most recently registered
 
             void kill_node_connection(uint8_t _id);
