@@ -1,6 +1,7 @@
 #include <iostream>
 #include <stdexcept>
 #include "m0rtis_hub.hpp"
+#include "m0rtis_proto/logging.hpp"
 
 using namespace m0rtis;
 
@@ -20,8 +21,7 @@ int main(int argc, char **argv) {
     // ./vnode <HOST> <PORT>
 
     if (argc != 3) {
-        std::cerr << "ERROR: Expected 3 arguments but got " << argc << std::endl;
-        std::cerr << "USAGE: ./m_hub <HOST> <PORT>" << std::endl;
+        log::error("Wrong argument count", {log::field("got", argc), log::field("usage", "./m0rtis_hub <HOST> <PORT>")});
         return -1;
     }
 
@@ -34,13 +34,13 @@ int main(int argc, char **argv) {
 
 
     } catch (std::out_of_range &e) {
-        std::cerr << "ERROR: Failed to convert port from string to unsigned" << std::endl;
+        log::error("Failed to convert port from string to unsigned");
         return -2;
     }
 
     MortisHub m_hub(host, port);
     if (m_hub.accept_connection() != 0) {
-        std::cout << "Disconnecting Node ..." << std::endl;
+        log::info("Disconnecting Node ...");
         return -10;
     }
 

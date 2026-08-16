@@ -1,3 +1,6 @@
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <string_view>
 #include <sys/socket.h>
@@ -10,6 +13,7 @@
 #include "m0rtis_hub.hpp"
 #include "m0rtis_proto/envelope.hpp"
 #include "m0rtis_proto/framing.hpp"
+#include "m0rtis_proto/logging.hpp"
 #include "m0rtis_proto/message_type.hpp"
 
 using namespace m0rtis;
@@ -26,45 +30,37 @@ using namespace m0rtis;
 void MortisHub::kill_node_connection(uint8_t _id) {
 
     if (connected_nodes.find(_id) == connected_nodes.end()) {
-        std::cerr << "ERROR: V-Node does not exist in connected_nodes\n";
+        log::error("V-Node does not exist in connected_nodes", {log::field("vnode_id", _id)});
     } else {
-        std::cout << "Killing connection to node: " << _id;
+        log::info("Killing connection to node", {log::field("vnode_id", _id)});
         close(connected_nodes[_id].node_sock);
     }
 
 }
 
-/**
- * the whole accept-a-node dance, start to finish: opens the listening
- * socket, binds, listens, blocks on accept() for exactly one connection,
- * then blocks again waiting for that connection's handshake. bails out
- * (closing whatever's open so far) the moment anything goes wrong -
- * socket creation, bind, listen, accept, no handshake received, wrong
- * message type instead of a handshake, or an unsupported protocol
- * version.
- *
- * on success, registers the node in connected_nodes and remembers its
- * vnode_id in _active_vnode_id so recv_loop() knows which socket to
- * read from next.
- *
- * still single-connection - only ever accepts once, doesn't loop back to
- * accept() for a second node (SCRUM-12/SCRUM-19). also doesn't do
- * anything to actually threaten-enforce "start timer for handshake" /
- * "stop timer" below, those are just comments marking where a real
- * handshake timeout would need to go in
- *
- * @return 0 on a fully accepted + handshaken connection, otherwise a
- *         distinct negative error code per failure point (-1 socket, -2
- *         inet_pton, -3 bind, -4 listen, -5 accept, -6 wrong message
- *         type, -7 bad protocol version, -8 recv_event came back nullopt)
- */
+
+void MortisHub::heartbeat_daemon() {
+    pid_t hd_pid { fork() };
+
+    if (hd_pid < 0) {
+        log::error("Failed to create heartbeat daemon", {log::field("errno", strerror(errno))});
+        exit(EXIT_FAILURE);
+    }
+
+    if (hd_pid > 0) {
+        exit(EXIT_SUCCESS);
+    }
+
+}
+
+
 int MortisHub::accept_connection() {
 
-    std::cout << "HUB serving at " << _HOST << ":" << _PORT << std::endl;
+    log::info("HUB serving", {log::field("host", _HOST), log::field("port", _PORT)});
     sock = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sock == -1) {
-        perror("Socket creation failed");
+        log::error("Socket creation failed", {log::field("errno", strerror(errno))});
         close(sock);
         return -1;
     }
@@ -76,7 +72,7 @@ int MortisHub::accept_connection() {
     int _c = inet_pton(AF_INET, _HOST, &hub_addr.sin_addr.s_addr);
 
     if (_c < 1) {
-        std::cerr  << "ERROR: Could not convert host to binary" << std::endl;
+        log::error("Could not convert host to binary");
         close(sock);
         return -2;
     }
@@ -84,15 +80,15 @@ int MortisHub::accept_connection() {
     int _b = bind(sock, reinterpret_cast<sockaddr *>(&hub_addr), sizeof(hub_addr));
 
     if (_b != 0) {
-        perror("bind");
+        log::error("bind failed", {log::field("errno", strerror(errno))});
         close(sock);
         return -3;
     }
 
-    std::cout << "Listening ... \n" << std::endl;
+    log::info("Listening ...");
     int _l = listen(sock, 5);
     if (_l == -1) {
-        perror("listen");
+        log::error("listen failed", {log::field("errno", strerror(errno))});
         close(sock);
         return -4;
     }
@@ -103,33 +99,33 @@ int MortisHub::accept_connection() {
     int _connection = accept(sock, reinterpret_cast<sockaddr *>(&n_addr), &n_addr_len);
 
     if (_connection == -1) {
-        perror("accept");
+        log::error("accept failed", {log::field("errno", strerror(errno))});
         return -5;
     };
 
 
     char ip_str[INET_ADDRSTRLEN];
     inet_ntop(AF_INET, &n_addr.sin_addr, ip_str, sizeof(ip_str));
-    std::cout << "Node connecting from " << ip_str << ":" << ntohs(n_addr.sin_port) << std::endl;
-    std::cout << "Waiting for handshake ...\n";
+    log::info("Node connecting", {log::field("addr", ip_str), log::field("port", ntohs(n_addr.sin_port))});
+    log::info("Waiting for handshake ...");
     // -----------------------------
 
     // start timer for handshake
     std::optional<Envelope> handshake {recv_event(_connection)};
 
     if (handshake == std::nullopt) {
-        std::cerr << "ERROR: Failed to receive handshake ... DISCONNECTING \n";
+        log::error("Failed to receive handshake ... DISCONNECTING");
         close(_connection);
         return -8;
     }
 
     if (handshake->type != MessageType::Handshake) {
-        std::cerr << "ERROR: Expected handshake but got " << msg_to_string(handshake->type) << " ... DISCONNECTING \n";
+        log::error("Expected handshake but got a different type ... DISCONNECTING", {log::field("type", msg_to_string(handshake->type))});
         close(_connection);
         return -6;
     }
     // stop timer
-    std::cout << "Received Handshake ... parsing \n";
+    log::info("Received Handshake ... parsing");
 
     uint8_t _vnode_id = handshake->vnode_id;
     std::string_view proto_v = handshake->version;
@@ -138,12 +134,12 @@ int MortisHub::accept_connection() {
     // i need to find a minium version required LATER
     // right now anything other than v0.0.0 is wrong
     if (proto_v != "0.0.0") {
-        std::cerr << "ERROR: Protocol Version not supported ... DISCONNECTING \n";
+        log::error("Protocol Version not supported ... DISCONNECTING", {log::field("version", proto_v)});
         close(_connection);
         return -7;
     }
 
-    std::cout << "Connection to V-Node " << std::format("{}", _vnode_id) << " @ " << ip_str << " accepted\n";
+    log::info("Connection accepted", {log::field("vnode_id", _vnode_id), log::field("addr", ip_str)});
     ConnectedNode valid_node {
         ip_str,                          // node_addr
         true,                            // is_connected
@@ -155,7 +151,7 @@ int MortisHub::accept_connection() {
     connected_nodes[_vnode_id] = valid_node;
     _active_vnode_id = _vnode_id;
 
-    std::cout << "Connected ... " << std::endl;
+    log::info("Connected ...");
     return 0;
 
 
@@ -194,26 +190,26 @@ void MortisHub::recv_loop() {
 
         switch (env->type) {
             case MessageType::Heartbeat:
-                std::cout << "Got heartbeat\n";
+                log::info("Got heartbeat", {log::field("vnode_id", env->vnode_id)});
                 // reset timer
                 break;
             case MessageType::InferenceEvent:
-                std::cout << "Got Inference Event\n";
-                // reset timer
-                std::cout << "Time: " << env->timestamp_ms << "\n";
-                std::cout << "From ID: " << env->vnode_id << "\n";
-                std::cout << "========== Payload ==========\n";
-                std::cout << env->payload.dump(2);
-                std::cout << "=============================\n";
+                log::info("Got Inference Event", {
+                    log::field("vnode_id", env->vnode_id),
+                    log::field("time", env->timestamp_ms),
+                    log::field("payload", env->payload.dump(2)),
+                });
                 break;
             case MessageType::SHUTDOWN:
-                std::cout << "Shutdown signal received ... shutting down connection ... \n";
+                log::info("Shutdown signal received ... shutting down connection ...", {log::field("vnode_id", env->vnode_id)});
                 kill_node_connection(env->vnode_id);
                 return;
             default:
 
-                std::cerr << "ERROR: Invalid Envelope ... DISCONNECTING \n";
-                std::cerr << "Got type: " << msg_to_string(env->type) << "\n";
+                log::error("Invalid Envelope ... DISCONNECTING", {
+                    log::field("vnode_id", env->vnode_id),
+                    log::field("type", msg_to_string(env->type)),
+                });
                 // retry here?
                 kill_node_connection(env->vnode_id);
                 return;
@@ -221,7 +217,7 @@ void MortisHub::recv_loop() {
 
     }
 
-    std::cout << "it is done ... ";
+    log::info("it is done ...");
 
 }
 

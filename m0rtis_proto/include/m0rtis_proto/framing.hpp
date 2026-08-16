@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <netinet/in.h>
 #include <stdexcept>
 #include <string>
@@ -15,6 +17,7 @@
 #include <nlohmann/json.hpp>
 #include <sys/types.h>
 #include "envelope.hpp"
+#include "logging.hpp"
 
 // This is the length-prefixed framing layer - the thing that turns "a
 // stream of bytes on a TCP socket" into "a stream of whole Envelopes".
@@ -46,7 +49,7 @@ namespace m0rtis {
 
                 ssize_t b = send(sock, data + nbytes_sent, nbytes - nbytes_sent, 0);
                 if (b < 0) {
-                    perror("send");
+                    log::error("send failed", {log::field("errno", strerror(errno))});
                     return -1;
 
                 }
@@ -70,7 +73,7 @@ namespace m0rtis {
                 ssize_t b = recv(sock, data + nbytes_recv, nbytes - nbytes_recv, 0);
 
                 if (b < 0) {
-                    perror("recv");
+                    log::error("recv failed", {log::field("errno", strerror(errno))});
                     return -1;
                 }
                 if (b == 0) {
@@ -99,7 +102,7 @@ namespace m0rtis {
         std::string msg_body = nlohmann::json(env).dump();
 
         if (msg_body.size() > MAX_MSG_SIZE) {
-            std::cerr << "Cannot send message bigger than MAX_MSG_SIZE \n";
+            log::error("Cannot send message bigger than MAX_MSG_SIZE");
             return -1;
         }
 
@@ -107,27 +110,27 @@ namespace m0rtis {
         int err = frame_utils::send_all(sock, reinterpret_cast<const char *>(&len_net), sizeof(len_net));      // send length prefix first
 
         if (err == -1) {
-            std::cerr << "Failed to send prefix data ... ";    // followed by perror
+            log::error("Failed to send prefix data");
             return -10;
         }
 
         if (err == -2) {
-            std::cerr << "Peer connection closed ... \n";
+            log::warn("Peer connection closed");
             return -20;
         }
 
         err = frame_utils::send_all(sock, msg_body.data(), msg_body.size());
         if (err == -1) {
-            std::cout << "Failed to send body data ... error: " << err << "\n";
+            log::error("Failed to send body data", {log::field("err", err)});
             return -11;
         }
 
         if (err == -2) {
-            std::cerr << "Peer connection closed ... \n";
+            log::warn("Peer connection closed");
             return -21;
         }
 
-        std::cout << "Event Successfully Emitted ... \n";
+        log::info("Event Successfully Emitted ...");
         return 0;
 
     }
@@ -150,12 +153,12 @@ namespace m0rtis {
 
 
         if (err == -1) {
-            std::cerr << "Failed to receive length prefix ... ";    // followed by perror
+            log::error("Failed to receive length prefix");
             return std::nullopt;
 
         }
         if (err == -2) {
-            std::cout << "Peer connection closed ... \n";
+            log::warn("Peer connection closed");
             return std::nullopt;
         }
 
@@ -163,20 +166,20 @@ namespace m0rtis {
 
         const uint32_t len = ntohl(len_net);
         if (len > MAX_MSG_SIZE) {
-            std::cerr << "ERROR: MAX MESSAGE SIZE REACHED" << std::endl;
+            log::error("MAX MESSAGE SIZE REACHED");
             return std::nullopt;
         }
         std::vector<char> msg(len);
 
         if (len > 0 && frame_utils::recv_all(sock, msg.data(), len) != 0) {
-            std::cerr << "ERROR: Could not receive data" << std::endl;
+            log::error("Could not receive data");
             return std::nullopt;
         }
 
     try {
         return nlohmann::json::parse(msg.begin(), msg.end()).get<Envelope>();
     } catch (const std::exception &e) {
-        std::cerr << "ERROR: could not parse data into Envelope ..." << std::endl;
+        log::error("could not parse data into Envelope", {log::field("what", e.what())});
         return std::nullopt;
 
     }

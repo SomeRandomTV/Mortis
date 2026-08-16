@@ -1,4 +1,6 @@
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -15,6 +17,7 @@
 #include "m0rtis_proto/envelope.hpp"
 #include "m0rtis_proto/framing.hpp"
 #include "m0rtis_proto/event_type.hpp"
+#include "m0rtis_proto/logging.hpp"
 #include "m0rtis_proto/message_type.hpp"
 
 using namespace m0rtis;
@@ -32,24 +35,24 @@ void MortisNode::heartbeat_daemon() {
     pid_t hd_pid = fork();  // heartbeat_daemon PID 
     
     if (hd_pid < 0) {
-        perror("fork");
+        log::error("fork failed", {log::field("errno", strerror(errno))});
         exit(EXIT_FAILURE);
     }
-    // detaches 
+    // detaches
     if (hd_pid > 0) {
-       exit(EXIT_SUCCESS); 
+       exit(EXIT_SUCCESS);
     }
-    // creates separate session 
+    // creates separate session
     if (setsid() < 0) {
-        perror("setsid");
+        log::error("setsid failed", {log::field("errno", strerror(errno))});
         exit(EXIT_FAILURE);
     }
 
-    // ok so on a timer - send a heartbeat to the server, now 
+    // ok so on a timer - send a heartbeat to the server, now
     // a separate socket sounds like a good descision
     _heartbeat_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (_heartbeat_sock < 0) {
-        std::cerr << "ERROR: Failed to create heartbeat socket \n";
+        log::error("Failed to create heartbeat socket", {log::field("errno", strerror(errno))});
         exit(EXIT_FAILURE);
     }
 
@@ -79,11 +82,11 @@ void MortisNode::heartbeat_daemon() {
  */
 int MortisNode::connect_hub() {
 
-    std::cout << "Node connecting to Hub at " << _HOST << ":" << _PORT << std::endl;
+    log::info("Node connecting to Hub", {log::field("host", _HOST), log::field("port", _PORT)});
 
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
-        std::cerr << "ERROR: Failed to create socked" << std::endl;
+        log::error("Failed to create socket", {log::field("errno", strerror(errno))});
         close(sock);
         return -1;
     }
@@ -95,14 +98,14 @@ int MortisNode::connect_hub() {
 
     int _c = inet_pton(AF_INET, _HOST, &node_addr.sin_addr);
     if (_c < 1) {
-        std::cerr << "ERROR: Failed to convert host IP from string to binary" << std::endl;
+        log::error("Failed to convert host IP from string to binary");
         close(sock);
         return -2;
     }
 
     int _connection = connect(sock, reinterpret_cast<sockaddr *>(&node_addr), node_len);
     if (_connection < 0) {
-        perror("connect");
+        log::error("connect failed", {log::field("errno", strerror(errno))});
         close(sock);
         return -3;
     }
@@ -116,19 +119,19 @@ int MortisNode::connect_hub() {
 
     };
 
-    std::cout << "Sending Handshake ... \n";
+    log::info("Sending Handshake ...");
 
     int err = emit_event(sock, env);
 
     if (err != 0) {
         close(sock);
         close(_connection);
-        std::cerr << "ERROR: Hub rejected the handshake ... returned " << err << "\n";
+        log::error("Hub rejected the handshake", {log::field("err", err)});
         return err;
 
     }
 
-    std::cout << "Hub accepted connection\n";
+    log::info("Hub accepted connection");
     return 0;
 
 
@@ -161,21 +164,20 @@ void MortisNode::event_loop() {
         if (counter % 2 == 0) {
             Envelope inf = next_fixture_inference_event();
 
-            std::cout << "Got Inference Event from the I.R.I.S. ->: \n";
-            std::cout << "Time: " << inf.timestamp_ms << "\n";
-            std::cout << "From ID: " << inf.version << "\n\n";
-
-
+            log::info("Got Inference Event from the I.R.I.S.", {
+                log::field("time", inf.timestamp_ms),
+                log::field("version", inf.version),
+            });
 
             err = emit_event(sock, inf);
 
             if (err != 0) {
-                std::cout << "Could not send data: " << err << "\n";
+                log::error("Could not send data", {log::field("err", err)});
                 close(sock);
                 return;
             }
 
-            std::cout << "Envelope sent ... \n";
+            log::info("Envelope sent ...");
 
         }
 
@@ -195,7 +197,7 @@ void MortisNode::event_loop() {
             err = emit_event(sock, heartbeat);
 
             if (err != 0) {
-                std::cerr << "Could not send heartbeat ... error: " << err << "\n";
+                log::error("Could not send heartbeat", {log::field("err", err)});
                 close(sock);
                 return;
             }
@@ -233,12 +235,12 @@ int MortisNode::node_shutdown() {
     int err = emit_event(sock, shutdown);
 
     if (err != 0) {
-        std::cerr << "Failed to send shutdown signal - still shuting down VNODE\n";
+        log::error("Failed to send shutdown signal - still shutting down VNODE", {log::field("err", err)});
         close(sock);
         return err;
     }
 
-    std::cout << "Node shutdown sent ... shutting down now \n";
+    log::info("Node shutdown sent ... shutting down now");
     close(sock);
     return 0;
 
