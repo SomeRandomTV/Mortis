@@ -19,6 +19,7 @@
 #include "m0rtis_proto/event_type.hpp"
 #include "m0rtis_proto/logging.hpp"
 #include "m0rtis_proto/message_type.hpp"
+#include "nlohmann/json.hpp"
 
 using namespace m0rtis;
 
@@ -31,36 +32,77 @@ void MortisNode::heartbeat_daemon() {
      * Emit heartbeat
      * Reset Timer 
      */
-
+    /* ========== Set up Heartbeat daemon + Socket ========== */
     pid_t hd_pid = fork();  // heartbeat_daemon PID 
     
     if (hd_pid < 0) {
         log::error("fork failed", {log::field("errno", strerror(errno))});
         exit(EXIT_FAILURE);
     }
-    // detaches
+
     if (hd_pid > 0) {
        exit(EXIT_SUCCESS);
     }
-    // creates separate session
+
     if (setsid() < 0) {
         log::error("setsid failed", {log::field("errno", strerror(errno))});
         exit(EXIT_FAILURE);
     }
 
-    // ok so on a timer - send a heartbeat to the server, now
+    // ok so on parent controlled timer - send a heartbeat to the server, now
     // a separate socket sounds like a good descision
+
     _heartbeat_sock = socket(AF_INET, SOCK_STREAM, 0);
     if (_heartbeat_sock < 0) {
-        log::error("Failed to create heartbeat socket", {log::field("errno", strerror(errno))});
+        log::error("Failed to create heartbeat socket ... ", {log::field("errno", strerror(errno))});
         exit(EXIT_FAILURE);
     }
 
+    sockaddr_in hb_addr;
+    hb_addr.sin_family = AF_INET;
+    hb_addr.sin_port = htons(_PORT);
+    
+    int _ipb {inet_pton(AF_INET, _HOST, &hb_addr.sin_addr) };
+    if (_ipb < 0) {
+        log::error("Failed to convert host to binary", {log::field("errno", strerror(errno))});
+        close(_heartbeat_sock);
+        exit(EXIT_FAILURE);
+    }
 
+    int _connection = connect(_heartbeat_sock, reinterpret_cast<sockaddr *>(&hb_addr), 0);
+    if (_connection < 0) {
+        log::error("Connect Failed ... ", {log::field("errno", strerror(errno))});
+        close(_heartbeat_sock);
+        exit(EXIT_FAILURE);
+    }
 
+    /* ====================================================== */
 
+    // connection valid here -> this is called AFTER Handshake
+    // timer gets started here, sleep for that time then send 
+    // check a flag first
+    time_t right_now;
+    Envelope heartbeat { 
+        PROTOCOL_VERSION,
+        MessageType::Heartbeat,
+        VNODE_ID,
+        time(&right_now),
+        nlohmann::json::object()
+    };
+    
 
+    // this part here, right smak here 
+    // needs to be controlled by a timer 
+    // how is the timer set up i ask my self?
+    // idk
+    int err = emit_event(_heartbeat_sock, heartbeat);
+    if (err != 0) {
+        log::error("Failed to send heartbeat", {log::field("err", err)});
+        close(_heartbeat_sock);
+        exit(EXIT_FAILURE);
+    }
 
+    log::info("Heartbeat sent ... ");
 
     
 }
@@ -84,6 +126,7 @@ int MortisNode::connect_hub() {
 
     log::info("Node connecting to Hub", {log::field("host", _HOST), log::field("port", _PORT)});
 
+    /* ========== Set up the Main Socket ========== */
     sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock == -1) {
         log::error("Failed to create socket", {log::field("errno", strerror(errno))});
@@ -96,12 +139,16 @@ int MortisNode::connect_hub() {
     node_addr.sin_family = AF_INET;     // IPv4 192.126.12.123
     node_addr.sin_port = htons(_PORT);
 
-    int _c = inet_pton(AF_INET, _HOST, &node_addr.sin_addr);
-    if (_c < 1) {
+
+
+    // get ip binaries 
+    int _ipb { inet_pton(AF_INET, _HOST, &node_addr.sin_addr) };
+    if (_ipb < 1) {
         log::error("Failed to convert host IP from string to binary");
         close(sock);
         return -2;
     }
+
 
     int _connection = connect(sock, reinterpret_cast<sockaddr *>(&node_addr), node_len);
     if (_connection < 0) {
@@ -109,9 +156,12 @@ int MortisNode::connect_hub() {
         close(sock);
         return -3;
     }
+
+    /* ============================================= */
+
     time_t right_now;
     Envelope env {
-       "0.0.0",     // protocol version
+        NODE_VERSION,     
         MessageType::Handshake,
         VNODE_ID,   // vision node id
         time(&right_now),   // right fucking now
@@ -157,55 +207,16 @@ int MortisNode::connect_hub() {
  */
 void MortisNode::event_loop() {
 
-    int counter { 0 };
-    int err { 0 };
-    while (counter < 10) {
+    // ok now heartbeat gets spawned 
+    // question on who controls the timer 
+    // daemon owns the timer assume with me ,
+    // sends on an internal timer 
+    //      now how does it get reset by inference event?
+    //      Do we check a flag? Then reset after sending heartbeat?
+    //
+    //      this would all happen inside the daemon yes 
+    
 
-        if (counter % 2 == 0) {
-            Envelope inf = next_fixture_inference_event();
-
-            log::info("Got Inference Event from the I.R.I.S.", {
-                log::field("time", inf.timestamp_ms),
-                log::field("version", inf.version),
-            });
-
-            err = emit_event(sock, inf);
-
-            if (err != 0) {
-                log::error("Could not send data", {log::field("err", err)});
-                close(sock);
-                return;
-            }
-
-            log::info("Envelope sent ...");
-
-        }
-
-
-        /* ========== This needs to be a background process ========== */
-        if (counter % 2 == 1) {
-            time_t right_now;
-
-            Envelope heartbeat {
-                "0.0.0",
-                MessageType::Heartbeat,
-                VNODE_ID,
-                time(&right_now),
-                nlohmann::json::object()
-
-            };
-            err = emit_event(sock, heartbeat);
-
-            if (err != 0) {
-                log::error("Could not send heartbeat", {log::field("err", err)});
-                close(sock);
-                return;
-            }
-        }
-        counter++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(900));
-    }
-    node_shutdown();
 }
 
 
@@ -221,8 +232,8 @@ void MortisNode::event_loop() {
  *         the socket's closed by the time this returns
  */
 int MortisNode::node_shutdown() {
-    // this function is to notify the hub that it is shutting down
 
+    // this function is to notify the hub that it is shutting down
     time_t right_fucking_now;
     Envelope shutdown {
         PROTOCOL_VERSION,
@@ -244,10 +255,4 @@ int MortisNode::node_shutdown() {
     close(sock);
     return 0;
 
-
-
-
 }
-
-
-

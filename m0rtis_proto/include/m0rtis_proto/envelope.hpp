@@ -22,10 +22,7 @@ namespace m0rtis {
 
 inline constexpr const char *PROTOCOL_VERSION = "0.0.0";
 
-// The envelope itself. Deliberately dumb/flat - no inheritance, no
-// per-type subclassing, just one struct with a json blob (`payload`)
-// whose shape depends on `type`. Keeps to_json/from_json simple since
-// there's only ever one shape to (de)serialize at this layer.
+
 struct Envelope {
     std::string version{ PROTOCOL_VERSION };      // ties to the protocol version
     MessageType type{ MessageType::UNKNOWN };     // type of event emitted
@@ -35,9 +32,7 @@ struct Envelope {
 };
 
 
-// serializes an Envelope to wire-format JSON - nlohmann finds this via
-// ADL whenever something does `nlohmann::json(env)` or `.dump()`s an
-// Envelope, so callers never call this directly
+
 inline void to_json(nlohmann::json &j, const Envelope &env) {
     j = nlohmann::json{
         {"version",   env.version},
@@ -48,13 +43,7 @@ inline void to_json(nlohmann::json &j, const Envelope &env) {
     };
 }
 
-// parses wire-format JSON back into an Envelope - again, found via ADL
-// through `j.get<Envelope>()`. every field except payload is required
-// (`.at()`, not `.value()`) so a message missing one of them throws
-// instead of silently defaulting - that's what makes a malformed/partial
-// message come back as recv_event() returning nullopt instead of an
-// Envelope full of zeros. payload alone defaults to an empty object since
-// e.g. heartbeat's payload is legitimately just `{}`
+
 inline void from_json(const nlohmann::json &j, Envelope &env) {
 
     j.at("version").get_to(env.version);

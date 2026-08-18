@@ -23,7 +23,7 @@ namespace m0rtis {
 
     //  Protocol Version
     inline constexpr const char* NODE_VERSION = "0.0.0"; 
-
+    inline constexpr const int HEARTBEAT_INTERVAL = 15;
 
     /* ========== DO NOT TOUCH UNTIL I.R.I.S. integration ========== */
     // Placeholder event source until real I.R.I.S. integration exists.
@@ -75,20 +75,25 @@ namespace m0rtis {
 
         public:
 
+            MortisNode(const char *HOST, unsigned PORT, uint8_t ID) : _HOST(HOST), _PORT(PORT), VNODE_ID(ID) {}
+
             const char *_HOST;
             unsigned _PORT;
             uint8_t VNODE_ID;
-            
-            MortisNode(const char *HOST, unsigned PORT, uint8_t ID) : _HOST(HOST), _PORT(PORT), VNODE_ID(ID) {}
 
             int connect_hub();      // build envelope send to hub 
-            void event_loop();      // runs indefinately sending inference events + heartbeats 
+            void event_loop();      // runs indefinately sending inference events + heartbeats
             int node_shutdown();
 
         private:
+
             int sock;
-            void heartbeat_daemon();    // runs heartbeat send timer
             int _heartbeat_sock;
+            bool sent { false };        // flag checked by daemon -> true if inference event was sent -> set to false after heartbeat 
+            void heartbeat_daemon();    // runs heartbeat send timer
+            
+
+            
 
     };
 
