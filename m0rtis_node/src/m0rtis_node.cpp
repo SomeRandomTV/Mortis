@@ -81,28 +81,39 @@ void MortisNode::heartbeat_daemon() {
     // connection valid here -> this is called AFTER Handshake
     // timer gets started here, sleep for that time then send 
     // check a flag first
-    time_t right_now;
-    Envelope heartbeat { 
-        PROTOCOL_VERSION,
-        MessageType::Heartbeat,
-        VNODE_ID,
-        time(&right_now),
-        nlohmann::json::object()
-    };
+    //
     
+    while (true) {
+         
+        if (sent) {
+            continue;
+        }
 
-    // this part here, right smak here 
-    // needs to be controlled by a timer 
-    // how is the timer set up i ask my self?
-    // idk
-    int err = emit_event(_heartbeat_sock, heartbeat);
-    if (err != 0) {
-        log::error("Failed to send heartbeat", {log::field("err", err)});
-        close(_heartbeat_sock);
-        exit(EXIT_FAILURE);
+        
+        time_t right_now;
+        Envelope heartbeat { 
+            PROTOCOL_VERSION,
+            MessageType::Heartbeat,
+            VNODE_ID,
+            time(&right_now),
+            nlohmann::json::object()
+        };
+        
+        int err = emit_event(_heartbeat_sock, heartbeat);
+        if (err != 0) {
+            log::error("Failed to send heartbeat", {log::field("err", err)});
+            close(_heartbeat_sock);
+            exit(EXIT_FAILURE);
+        }
+
+        log::info("Heartbeat sent ... ");
+        std::this_thread::sleep_for(std::chrono::seconds(HEARTBEAT_INTERVAL));
+        if (sent) {
+            
+        }
+        
     }
 
-    log::info("Heartbeat sent ... ");
 
     
 }

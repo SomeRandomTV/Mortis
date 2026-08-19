@@ -14,10 +14,7 @@
 namespace m0rtis {
 
 
-    // hub-side bookkeeping for one connected V-Node. Gets created once a
-    // node's handshake passes validation (see MortisHub::accept_connection)
-    // and is meant to be the hub's source of truth for "is this node still
-    // around and what socket do I talk to it on."
+
     struct ConnectedNode {
         std::string node_addr;
         bool is_connected;
@@ -31,13 +28,6 @@ namespace m0rtis {
     inline constexpr const char* HUB_VERSION = "0.0.0";
 
 
-    // The hub itself. One MortisHub == one listening socket. Right now it's
-    // strictly single-connection: accept_connection() blocks until exactly
-    // one V-Node handshakes successfully, then recv_loop() services just
-    // that one connection. connected_nodes is a map (not a single field)
-    // because the wire protocol/schema already supports multiple nodes -
-    // the map's just ahead of the current single-threaded control flow,
-    // which hasn't caught up yet.
     class MortisHub {
 
         public:
